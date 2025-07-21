@@ -1,0 +1,111 @@
+name: Multi-Job Artifact Sharing
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Create shared data
+      run: |
+        mkdir -p shared-data
+        echo "Prepared by: prepare job" > shared-data/info.txt
+        echo "Timestamp: $(date)" >> shared-data/info.txt
+        echo "Commit: ${{ github.sha }}" >> shared-data/info.txt
+        
+        # JSONデータ作成
+        cat > shared-data/config.json << 'EOJ'
+        {
+          "version": "1.0.0",
+          "environment": "production",
+          "features": ["feature1", "feature2", "feature3"]
+        }
+EOJ
+    
+    - name: Upload shared data
+      uses: actions/upload-artifact@v4
+      with:
+        name: shared-data
+        path: shared-data/
+
+  process-data:
+    needs: prepare
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download shared data
+      uses: actions/download-artifact@v4
+      with:
+        name: shared-data
+        path: input-data/
+    
+    - name: Process data
+      run: |
+        echo "=== Processing shared data ==="
+        cat input-data/info.txt
+        cat input-data/config.json
+        
+        # 処理結果を作成
+        mkdir -p processed-data
+        echo "Processed by: process-data job" > processed-data/processed-info.txt
+        echo "Original data:" >> processed-data/processed-info.txt
+        cat input-data/info.txt >> processed-data/processed-info.txt
+        
+        # 処理済みJSONを作成
+        node -e "
+          const fs = require('fs');
+          const config = JSON.parse(fs.readFileSync('input-data/config.json', 'utf8'));
+          config.processed = true;
+          config.processedAt = new Date().toISOString();
+          fs.writeFileSync('processed-data/processed-config.json', JSON.stringify(config, null, 2));
+        "
+    
+    - name: Upload processed data
+      uses: actions/upload-artifact@v4
+      with:
+        name: processed-data
+        path: processed-data/
+
+  finalize:
+    needs: [prepare, process-data]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: all-artifacts/
+    
+    - name: Create final report
+      run: |
+        mkdir -p final-report
+        echo "# Final Report" > final-report/summary.md
+        echo "" >> final-report/summary.md
+        echo "## Artifacts Summary" >> final-report/summary.md
+        echo "" >> final-report/summary.md
+        
+        for dir in all-artifacts/*/; do
+          artifact_name=$(basename "$dir")
+          echo "### $artifact_name" >> final-report/summary.md
+          echo "\`\`\`" >> final-report/summary.md
+          ls -la "$dir" >> final-report/summary.md
+          echo "\`\`\`" >> final-report/summary.md
+          echo "" >> final-report/summary.md
+        done
+        
+        echo "Report generated at: $(date)" >> final-report/summary.md
+    
+    - name: Display final report
+      run: cat final-report/summary.md
+    
+    - name: Upload final report
+      uses: actions/upload-artifact@v4
+      with:
+        name: final-report
+        path: final-report/

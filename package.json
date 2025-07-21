@@ -1,0 +1,11 @@
+{
+  "name": "artifact-demo",
+  "version": "1.0.0",
+  "description": "GitHub Actions アーティファクトデモ",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "node test.js",
+    "build": "mkdir -p dist && cp app.js dist/ && echo 'Build completed at:' > dist/build-info.txt && date >> dist/build-info.txt"
+  }
+}

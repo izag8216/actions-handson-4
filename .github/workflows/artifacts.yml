@@ -1,0 +1,108 @@
+name: Build and Upload Artifacts
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install dependencies
+      run: npm install
+    
+    - name: Run tests
+      run: npm test
+    
+    - name: Build application
+      run: npm run build
+    
+    - name: Create additional artifacts
+      run: |
+        # ログファイル作成
+        mkdir -p logs
+        echo "Build started at: $(date)" > logs/build.log
+        echo "Node.js version: $(node --version)" >> logs/build.log
+        echo "NPM version: $(npm --version)" >> logs/build.log
+        echo "Build completed at: $(date)" >> logs/build.log
+        
+        # レポート作成
+        mkdir -p reports
+        echo "# Build Report" > reports/build-report.md
+        echo "" >> reports/build-report.md
+        echo "- Build Date: $(date)" >> reports/build-report.md
+        echo "- Node.js Version: $(node --version)" >> reports/build-report.md
+        echo "- Repository: ${{ github.repository }}" >> reports/build-report.md
+        echo "- Branch: ${{ github.ref }}" >> reports/build-report.md
+        echo "- Commit: ${{ github.sha }}" >> reports/build-report.md
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-files
+        path: dist/
+        retention-days: 30
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: test-results.json
+        retention-days: 7
+    
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: logs/
+        retention-days: 14
+    
+    - name: Upload reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-reports
+        path: reports/
+        retention-days: 30
+
+  download-and-verify:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: build-files
+        path: downloaded-build/
+    
+    - name: Download test results
+      uses: actions/download-artifact@v4
+      with:
+        name: test-results
+        path: downloaded-tests/
+    
+    - name: Verify downloaded artifacts
+      run: |
+        echo "=== Downloaded Build Files ==="
+        ls -la downloaded-build/
+        cat downloaded-build/build-info.txt
+        
+        echo ""
+        echo "=== Downloaded Test Results ==="
+        ls -la downloaded-tests/
+        cat downloaded-tests/test-results.json
+        
+        echo ""
+        echo "=== Verification Complete ==="
+        echo "All artifacts downloaded successfully!"
